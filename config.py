@@ -14,6 +14,7 @@ load_dotenv()
 TELEGRAM_TOKEN: str = os.getenv("TELEGRAM_TOKEN", "")
 BOT_USERNAME:   str = os.getenv("BOT_USERNAME", "").lstrip("@").lower()
 WEBHOOK_SECRET: str = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
+TELEGRAM_PROXY_URL: str = os.getenv("TELEGRAM_PROXY_URL", "")
 
 # ── OpenModel.ai (DeepSeek V4 Flash) ─────────────────────────────────────────
 # مستندات: https://www.openmodel.ai/model-pricing/deepseek-v4-flash

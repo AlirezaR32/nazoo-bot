@@ -13,7 +13,7 @@ from telegram.ext import (
 from telegram.constants import ChatAction
 from telegram.error import TelegramError
 
-from config import TELEGRAM_TOKEN, BOT_NAME
+from config import TELEGRAM_TOKEN, TELEGRAM_PROXY_URL, BOT_NAME
 from memory import MemoryManager
 from ai_client import AIClient
 from group_utils import should_respond_in_group, strip_mention
@@ -182,12 +182,21 @@ def main():
     if not TELEGRAM_TOKEN:
         raise ValueError("❌ TELEGRAM_TOKEN تنظیم نشده! فایل .env رو چک کن.")
 
-    app = (
+    builder = (
         Application.builder()
         .token(TELEGRAM_TOKEN)
         .post_init(on_startup)
-        .build()
     )
+
+    if TELEGRAM_PROXY_URL:
+        builder = (
+            builder
+            .proxy(TELEGRAM_PROXY_URL)
+            .get_updates_proxy(TELEGRAM_PROXY_URL)
+        )
+        logger.info(f"🌐 Telegram proxy enabled: {TELEGRAM_PROXY_URL}")
+
+    app = builder.build()
 
     app.add_handler(CommandHandler("start",   cmd_start))
     app.add_handler(CommandHandler("help",    cmd_help))
@@ -199,6 +208,11 @@ def main():
     app.add_error_handler(error_handler)
 
     logger.info(f"🚀 Starting {BOT_NAME} (polling mode)...")
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+
     app.run_polling(drop_pending_updates=True, allowed_updates=Update.ALL_TYPES)
 
 
