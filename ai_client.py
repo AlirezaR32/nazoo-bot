@@ -56,7 +56,7 @@ class AIClient:
                 system=self._system(user_name, facts),
                 messages=messages,
             )
-            return "".join(b.text for b in resp.content if b.type == "text").strip()
+            return "".join(b.text for b in resp.content if b.type == "text").strip().replace("**", "")
 
         except RateLimitError:
             logger.warning("Rate limit از OpenModel خورد")
