@@ -1,8 +1,17 @@
 {
-  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
     "api/webhook.py": {
-      "maxDuration": 30
+      "runtime": "python3.9",
+      "maxDuration": 10,
+      "memory": 1024
     }
-  }
+  },
+  "routes": [
+    {
+      "src": "/(.*)",
+      "dest": "/api/webhook.py"
+    }
+  ],
+  "installCommand": "pip install -r requirements-vercel.txt",
+  "buildCommand": "echo 'Build completed'"
 }
