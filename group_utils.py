@@ -8,6 +8,36 @@ group_utils.py — منطق مشترک تشخیص اینکه ربات باید �
 import re
 
 
+def is_reply_to_bot(reply_to_message, bot_id: int | None = None, bot_username: str = "") -> bool:
+    """آیا این پیام به ربات ریپلای شده؟"""
+    if not reply_to_message:
+        return False
+
+    if isinstance(reply_to_message, dict):
+        from_user = reply_to_message.get("from") or reply_to_message.get("from_user") or {}
+    else:
+        from_user = getattr(reply_to_message, "from_user", None)
+
+    if isinstance(from_user, dict):
+        user_id = from_user.get("id")
+        username = (from_user.get("username") or "").lower()
+        is_bot = from_user.get("is_bot", False)
+    elif from_user is not None:
+        user_id = getattr(from_user, "id", None)
+        username = (getattr(from_user, "username", "") or "").lower()
+        is_bot = getattr(from_user, "is_bot", False)
+    else:
+        return False
+
+    if bot_id is not None and user_id == bot_id:
+        return True
+
+    if bot_username:
+        return username == bot_username.lower()
+
+    return bool(is_bot)
+
+
 def should_respond_in_group(
     text: str,
     mentions: list[str],

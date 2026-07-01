@@ -32,7 +32,7 @@ from config import (
 )
 from personality_loader import load_personality
 from fact_patterns import extract_facts
-from group_utils import should_respond_in_group, strip_mention
+from group_utils import is_reply_to_bot, should_respond_in_group, strip_mention
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -221,8 +221,11 @@ def process_update(update: dict):
             for e in entities if e.get("type") == "mention"
         ]
         reply_msg   = msg.get("reply_to_message") or {}
-        reply_user  = reply_msg.get("from", {}) or {}
-        reply_to_bot = (reply_user.get("username", "") or "").lower() == _get_bot_username()
+        reply_to_bot = is_reply_to_bot(
+            reply_msg,
+            bot_id=None,
+            bot_username=_get_bot_username(),
+        )
 
         if not should_respond_in_group(
             text, mentions, reply_to_bot, _get_bot_username(), BOT_NAME, extra_aliases=("نازو",)

@@ -16,7 +16,7 @@ from telegram.error import TelegramError
 from config import TELEGRAM_TOKEN, TELEGRAM_PROXY_URL, BOT_NAME
 from memory import MemoryManager
 from ai_client import AIClient
-from group_utils import should_respond_in_group, strip_mention
+from group_utils import is_reply_to_bot, should_respond_in_group, strip_mention
 
 logging.basicConfig(
     format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
@@ -120,10 +120,10 @@ async def handle_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     mentions.append(
                         msg.text[ent.offset: ent.offset + ent.length].lstrip("@")
                     )
-        reply_to_bot = bool(
-            msg.reply_to_message
-            and msg.reply_to_message.from_user
-            and msg.reply_to_message.from_user.id == bot_id
+        reply_to_bot = is_reply_to_bot(
+            msg.reply_to_message,
+            bot_id=bot_id,
+            bot_username=bot_username,
         )
         if not should_respond_in_group(
             msg.text, mentions, reply_to_bot, bot_username, BOT_NAME, extra_aliases=("نازو",)
