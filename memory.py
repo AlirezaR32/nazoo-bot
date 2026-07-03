@@ -77,6 +77,25 @@ class MemoryManager:
                 row = await cur.fetchone()
         return {"name": row[0], "messages": row[1], "since": row[2]} if row else {}
 
+    async def list_all_users(self) -> list[dict]:
+        """برای پنل ادمین — همه‌ی کاربرها با آمار پایه، جدیدترین‌ها اول."""
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("""
+                SELECT user_id, first_name, username, msg_count, joined_at
+                FROM users ORDER BY joined_at DESC
+            """) as cur:
+                rows = await cur.fetchall()
+        return [
+            {"user_id": r[0], "first_name": r[1], "username": r[2], "messages": r[3], "since": r[4]}
+            for r in rows
+        ]
+
+    async def total_stats(self) -> dict:
+        async with aiosqlite.connect(self.db_path) as db:
+            async with db.execute("SELECT COUNT(*), COALESCE(SUM(msg_count),0) FROM users") as cur:
+                row = await cur.fetchone()
+        return {"total_users": row[0], "total_messages": row[1]}
+
     # ── Messages ─────────────────────────────────────────────────────────────
 
     async def add_message(self, user_id: int, role: str, content: str):

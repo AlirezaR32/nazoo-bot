@@ -13,7 +13,7 @@ from telegram.ext import (
 from telegram.constants import ChatAction
 from telegram.error import TelegramError
 
-from config import TELEGRAM_TOKEN, TELEGRAM_PROXY_URL, BOT_NAME
+from config import TELEGRAM_TOKEN, TELEGRAM_PROXY_URL, BOT_NAME, ADMIN_USER_IDS
 from memory import MemoryManager
 from ai_client import AIClient
 from group_utils import is_reply_to_bot, should_respond_in_group, strip_mention
@@ -97,6 +97,85 @@ async def cmd_stats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
     else:
         await update.message.reply_text("هنوز اطلاعاتی ندارم ازت! /start بزن اول.")
+
+
+# ── دستورات ادمین (فقط آیدی‌های داخل ADMIN_USER_IDS) ──────────────────────────
+
+async def cmd_admin(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id not in ADMIN_USER_IDS:
+        await update.message.reply_text("این دستور رو نمیشناسم 🤔 /help رو بزن.")
+        return
+    stats = await memory.total_stats()
+    await update.message.reply_text(
+        f"🛠️ پنل ادمین {BOT_NAME}\n\n"
+        f"👥 کل کاربرها: {stats['total_users']}\n"
+        f"💬 کل پیام‌ها: {stats['total_messages']}\n\n"
+        f"/users — لیست کاربرها\n"
+        f"/chatlog <user_id> — تاریخچه‌ی یه کاربر"
+    )
+
+
+async def cmd_users(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id not in ADMIN_USER_IDS:
+        await update.message.reply_text("این دستور رو نمیشناسم 🤔 /help رو بزن.")
+        return
+    users = await memory.list_all_users()
+    if not users:
+        await update.message.reply_text("هنوز هیچ کاربری نداریم.")
+        return
+    lines = [
+        f"• {u['first_name']} ({'@'+u['username'] if u['username'] else '—'}) "
+        f"— id:{u['user_id']} — {u['messages']} پیام"
+        for u in users[:40]
+    ]
+    await _send_long(update.message.chat_id, ctx, f"👥 کاربرها ({len(users)}):\n\n" + "\n".join(lines))
+
+
+async def cmd_chatlog(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    if user.id not in ADMIN_USER_IDS:
+        await update.message.reply_text("این دستور رو نمیشناسم 🤔 /help رو بزن.")
+        return
+    if not ctx.args or not ctx.args[0].isdigit():
+        await update.message.reply_text("استفاده: /chatlog <user_id>\nاز /users آیدی رو بگیر.")
+        return
+
+    target_id = int(ctx.args[0])
+    history   = await memory.get_history(target_id)
+    facts     = await memory.get_facts(target_id)
+    stats     = await memory.get_stats(target_id)
+
+    if not history and not stats:
+        await update.message.reply_text("همچین کاربری پیدا نشد.")
+        return
+
+    name  = stats.get("name", "؟") if stats else "؟"
+    lines = [f"📜 تاریخچه‌ی {name} (id:{target_id})\n"]
+    if facts:
+        lines.append("🧠 فکت‌ها: " + " | ".join(facts))
+        lines.append("")
+    for m in history:
+        speaker = "👤 کاربر" if m["role"] == "user" else f"🤖 {BOT_NAME}"
+        lines.append(f"{speaker}: {m['content']}")
+
+    await _send_long(update.message.chat_id, ctx, "\n".join(lines))
+
+
+async def _send_long(chat_id: int, ctx: ContextTypes.DEFAULT_TYPE, text: str, chunk_size: int = 3500):
+    """پیام‌های طولانی رو تکه‌تکه می‌فرسته تا از محدودیت ۴۰۹۶ کاراکتری تلگرام رد نشه."""
+    if len(text) <= chunk_size:
+        await ctx.bot.send_message(chat_id, text)
+        return
+    buf = ""
+    for line in text.split("\n"):
+        if len(buf) + len(line) + 1 > chunk_size:
+            await ctx.bot.send_message(chat_id, buf)
+            buf = ""
+        buf += line + "\n"
+    if buf.strip():
+        await ctx.bot.send_message(chat_id, buf)
 
 
 # ── Message Handler ───────────────────────────────────────────────────────────
@@ -204,6 +283,9 @@ def main():
     app.add_handler(CommandHandler("forget",  cmd_forget))
     app.add_handler(CommandHandler("memory",  cmd_memory_show))
     app.add_handler(CommandHandler("stats",   cmd_stats))
+    app.add_handler(CommandHandler("admin",   cmd_admin))
+    app.add_handler(CommandHandler("users",   cmd_users))
+    app.add_handler(CommandHandler("chatlog", cmd_chatlog))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
     app.add_error_handler(error_handler)
 
