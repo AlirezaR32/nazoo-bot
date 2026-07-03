@@ -1,7 +1,13 @@
+# ── حالت polling (bot.py) — لپ‌تاپ یا VPS ──────────────────────────────────
 python-telegram-bot==21.4
 aiosqlite>=0.20.0
 python-dotenv>=1.0.0
 anthropic>=0.40.0
+
+# set_webhook.py هم از این استفاده می‌کنه
 requests>=2.31.0
-httpx==0.28.1
-flask==3.0.3
+
+# ⚠️ توجه: هیچ‌وقت flask/fastapi/django رو اینجا اضافه نکن — Vercel با دیدن
+# این پکیج‌ها فرض می‌کنه پروژه یه اپ Flask/FastAPI هست و دنبال یه آبجکت
+# app می‌گرده، نه کلاس handler که توابع api/*.py واقعاً دارن. همین باعث
+# خطای "could not import" میشه که قبلاً دیدیم.
