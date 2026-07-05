@@ -1,303 +1,137 @@
-# Nazoo 🦋 — Telegram AI Chatbot
+# Nazoo 🦋
 
-یه ربات تلگرام جذاب، باهوش، و دوزبانه (فارسی/انگلیسی) با حافظه‌ی واقعی،
-شخصیت قابل‌تنظیم، و موتور **DeepSeek V4 Flash** از طریق **OpenModel.ai**.
+ربات تلگرام هوشمند و دوزبانه با حافظه، شخصیت قابل تنظیم، و پشتیبانی از حالت‌های Polling و Webhook.
 
-دو حالت اجرا داره:
+Nazoo از مدل DeepSeek V4 Flash از طریق OpenModel.ai استفاده می‌کند و برای چت شخصی، گروه‌ها، و اجرای بر روی Vercel یا VPS مناسب است.
 
-| حالت | فایل | کجا اجرا میشه | حافظه |
-|---|---|---|---|
-| **Polling** | `bot.py` | لپ‌تاپ یا VPS (همیشه روشن) | SQLite محلی |
-| **Webhook** | `api/index.py` (+ `webhook_logic.py`) | Vercel (Serverless) | Redis (Upstash/Vercel KV) |
+## ✨ ویژگی‌ها
 
----
+- پاسخ‌های طبیعی و چندزبانه (فارسی/انگلیسی)
+- حافظه‌ی کاربر و فکت‌های یادگرفته‌شده
+- شخصیت قابل تنظیم از طریق فایل شخصیت
+- پشتیبانی از چت شخصی و گروه
+- حالت‌های اجرا:
+  - Polling برای لپ‌تاپ یا VPS
+  - Webhook برای Vercel
+- پنل ادمین برای مشاهده‌ی پیام‌ها و مدیریت کاربران
 
-## ساختار پروژه
+## 🛠️ تکنولوژی‌ها
 
-```
+- Python 3.11+
+- python-telegram-bot
+- aiosqlite
+- python-dotenv
+- Anthropic-compatible OpenModel client
+- Redis برای حالت Webhook/Vercel
+
+## 📁 ساختار پروژه
+
+```text
 nazoo-bot/
 ├── api/
-│   └── index.py             # ⭐ تنها Python entrypoint واقعی روی Vercel
-├── webhook_logic.py          # منطق webhook (بدون کلاس handler — از index.py صدا زده میشه)
-├── admin_logic.py              # منطق داشبورد ادمین (همون‌طور)
-├── bot.py                       # ربات حالت polling — برای لپ‌تاپ/VPS
-├── config.py                     # تنظیمات مشترک از .env
-├── memory.py                      # حافظه SQLite (فقط polling)
-├── ai_client.py                    # کلاینت async OpenModel (فقط polling)
-├── kv_store.py                      # کلاینت مینیمال Upstash Redis (webhook + admin)
-├── fact_patterns.py              # regexهای استخراج فکت (مشترک)
-├── group_utils.py                 # تشخیص منشن/ریپلای در گروه (مشترک)
-├── personality_loader.py           # بارگذاری فایل شخصیت (مشترک)
-├── personality.txt                  # شخصیت Nazoo — هرجور خواستی ویرایشش کن
-├── set_webhook.py                    # ابزار کمکی برای ثبت webhook تلگرام
-├── requirements.txt                   # فقط برای حالت polling محلی
+│   ├── index.py
+│   └── webhook.py
+├── admin_logic.py
+├── ai_client.py
+├── bot.py
+├── config.py
+├── fact_patterns.py
+├── group_utils.py
+├── kv_store.py
+├── memory.py
+├── personality_loader.py
+├── personality.txt
+├── requirements.txt
+├── set_webhook.py
 ├── vercel.json
-├── .env.example
-└── .gitignore
+└── .env.example
 ```
 
-**نکته‌ی مهم ۱:** `webhook_logic.py` و `admin_logic.py` عمداً هیچ پکیج
-خارجی استفاده نمی‌کنن (فقط stdlib پایتون) — تا مشکلات نصب پکیج در Vercel
-اصلاً پیش نیاد.
+## 🚀 راه‌اندازی سریع
 
-**نکته‌ی مهم ۲:** Vercel's Python runtime فقط **یک entrypoint واحد** برای
-کل پروژه قبول می‌کنه. برای همین `api/index.py` تنها فایلیه که کلاس
-`handler` داره — و بر اساس query param `?route=` (که با rewrite در
-`vercel.json` تنظیم شده) بین منطق webhook و admin سوییچ می‌کنه. آدرس‌های
-`/api/webhook` و `/api/admin` دقیقاً مثل قبل کار می‌کنن، فقط پشت‌صحنه به
-یه فایل واحد rewrite میشن.
-
----
-
-## ۱) راه‌اندازی محلی (تست سریع)
+### 1) کلون و نصب وابستگی‌ها
 
 ```bash
 git clone <your-repo-url>
 cd nazoo-bot
-python -m venv venv && source venv/bin/activate   # یا venv\Scripts\activate در ویندوز
+python -m venv venv
+source venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 ```
 
-فایل `.env` رو پر کن:
+### 2) تنظیم متغیرهای محیطی
+
+فایل .env را با مقادیر زیر پر کنید:
 
 ```env
-TELEGRAM_TOKEN=توکن_از_BotFather
-OPENMODEL_API_KEY=کلید_OpenModel
+TELEGRAM_TOKEN=your_bot_token
+OPENMODEL_API_KEY=your_openmodel_key
 OPENMODEL_BASE_URL=https://api.openmodel.ai
 AI_MODEL=deepseek-v4-flash
 ```
 
-اگه تلگرام در شبکه‌ت مستقیم در دسترس نیست (مثلاً در ایران)، یه پروکسی هم
-می‌تونی تنظیم کنی:
+در صورت نیاز برای پروکسی:
 
 ```env
 TELEGRAM_PROXY_URL=http://127.0.0.1:10808
 ```
 
-اجرا:
+### 3) اجرای ربات
 
 ```bash
 python bot.py
 ```
 
-این حالت از SQLite محلی استفاده می‌کنه — برای تست عالیه، ولی برای اجرای
-دائمی نیاز به یه سرور همیشه‌روشن (VPS) داره.
+## ☁️ دیپلوی روی Vercel
 
----
+برای اجرای وبهوک روی Vercel، این مراحل را دنبال کنید:
 
-## ۲) دیپلوی روی Vercel (Serverless)
-
-### مرحله ۱ — پوش به GitHub
-
-```bash
-git add -A
-git commit -m "your message"
-git push
-```
-
-### مرحله ۲ — وصل کردن به Vercel
-
-1. به [vercel.com/new](https://vercel.com/new) برو
-2. ریپوی `nazoo-bot` رو از GitHub انتخاب کن و Import بزن
-3. Vercel خودش Python runtime رو تشخیص میده و `api/index.py` رو
-   به‌عنوان تنها entrypoint پروژه می‌سازه (webhook و admin هر دو از
-   همین یه تابع سرو میشن، با rewrite داخل `vercel.json`)
-
-### مرحله ۳ — یه دیتابیس Redis وصل کن (برای حافظه)
-
-چون فایل‌سیستم Vercel موقتیه (هر اجرا ممکنه روی یه instance جدید باشه)،
-حافظه باید روی یه دیتابیس خارجی ذخیره شه:
-
-- در پنل پروژه‌ی Vercel: **Storage → Marketplace Database Providers → Upstash for Redis**
-  (نه Vector، نه QStash، نه Search — همون گزینه‌ی ساده‌ی Redis)
-- یه دیتابیس رایگان بساز و به پروژه وصلش کن
-- Vercel خودش متغیرهای `KV_REST_API_URL` و `KV_REST_API_TOKEN` رو ست می‌کنه
-
-(یا مستقیم در [upstash.com](https://upstash.com) یه دیتابیس رایگان بساز و
-`UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` رو دستی در Vercel
-Environment Variables اضافه کن.)
-
-### مرحله ۴ — بقیه‌ی Environment Variables رو ست کن
-
-در **Project Settings → Environment Variables**، همون مقادیر `.env.example`
-رو وارد کن:
-
-```
-TELEGRAM_TOKEN
-TELEGRAM_WEBHOOK_SECRET   (یه رشته‌ی تصادفی خودت بساز)
-OPENMODEL_API_KEY
-OPENMODEL_BASE_URL        (بدون /v1 در انتها!)
-AI_MODEL
-BOT_NAME
-ADMIN_USER_IDS            (آیدی عددی تلگرامت — از @userinfobot بگیر)
-ADMIN_SECRET              (رمز داشبورد وب — یه رشته‌ی تصادفی و قوی)
-```
-
-⚠️ **فقط همین‌ها رو ست کن.** به `requirements.txt` هیچ‌وقت `flask`،
-`fastapi`، یا `django` اضافه نکن — دلیلش بالاتر توضیح داده شد.
-
-### مرحله ۵ — دیپلوی و گرفتن آدرس
-
-بعد از دیپلوی، آدرس پروژه‌ت چیزی شبیه این میشه:
-```
-https://nazoo-bot.vercel.app
-```
-
-endpoint وبهوک تلگرام:
-```
-https://nazoo-bot.vercel.app/api/webhook
-```
-
-داشبورد ادمین:
-```
-https://nazoo-bot.vercel.app/api/admin
-```
-
-### مرحله ۶ — ثبت webhook در تلگرام
-
-از همون `.env` لوکالت (یا با env vars واقعی) این رو اجرا کن:
+1. پروژه را به GitHub Push کنید.
+2. در Vercel، ریپوی خود را import کنید.
+3. متغیرهای محیطی را در تنظیمات پروژه وارد کنید.
+4. برای حافظه، از Redis (مثلاً Upstash) استفاده کنید.
+5. وبهوک را با این دستور ثبت کنید:
 
 ```bash
-python set_webhook.py set https://nazoo-bot.vercel.app/api/webhook
+python set_webhook.py set https://your-project.vercel.app/api/webhook
 ```
 
-چک کن درست ثبت شده:
+برای بررسی وضعیت webhook:
 
 ```bash
 python set_webhook.py info
 ```
 
-تمام! حالا ربات روی Vercel به‌صورت serverless و رایگان کار می‌کنه 🎉
+## 🤖 دستورات ربات
 
----
-
-## دستورات ربات
-
-| دستور | کار |
+| دستور | توضیح |
 |---|---|
-| `/start` | شروع |
-| `/help` | راهنما |
-| `/reset` | پاک کردن تاریخچه گفتگو |
-| `/forget` | فراموش کردن فکت‌های ذخیره‌شده |
-| `/memory` | نمایش چیزایی که ربات یادشه |
-| `/stats` | آمار گفتگو |
+| /start | شروع گفتگو |
+| /help | راهنمای دستورات |
+| /reset | پاک‌کردن تاریخچه گفتگو |
+| /forget | پاک‌کردن فکت‌های ذخیره‌شده |
+| /memory | نمایش حافظه‌ی ربات |
+| /stats | نمایش آمار گفتگو |
 
----
+## 🛡️ ادمین
 
-## پنل ادمین 🛠️
+اگر آیدی عددی خود را در متغیر ADMIN_USER_IDS وارد کنید، دستورات ادمین در تلگرام نیز در دسترس خواهند بود:
 
-دو راه برای دیدن پیام‌های همه‌ی کاربرها و جواب‌های AI وجود داره:
+- /admin
+- /users
+- /chatlog <user_id>
 
-### ۱) داشبورد وب کامل
+## 📝 تغییر شخصیت ربات
 
-به این آدرس برو:
-```
-https://your-project.vercel.app/api/admin
-```
+فایل personality.txt را ویرایش کنید تا شخصیت ربات تغییر کند. این تغییر بدون نیاز به تغییر کد اعمال می‌شود.
 
-با رمزی که در `ADMIN_SECRET` گذاشتی وارد شو. امکانات:
-- لیست همه‌ی کاربرها با آخرین فعالیت (نقطه‌ی سبز = آنلاین در ۵ دقیقه‌ی اخیر)
-- جستجوی سریع بین کاربرها
-- مشاهده‌ی کامل تاریخچه‌ی گفتگو (حباب‌های کاربر/AI جدا از هم)
-- مشاهده‌ی فکت‌های یادگرفته‌شده از هر کاربر
-- پاک‌کردن تاریخچه / فراموشی فکت‌ها / حذف کامل یه کاربر — هرکدوم جدا
-- ریسپانسیو کامل، از موبایل هم قابل استفاده‌ست
+## 📌 نکات مهم
 
-**نکته‌ی امنیتی:** `ADMIN_SECRET` رو یه رشته‌ی تصادفی و بلند بذار (مثلاً با
-`openssl rand -hex 24` بسازش). بدون این متغیر، داشبورد هیچ داده‌ای نشون نمیده.
+- در حالت Vercel، فایل api/index.py ورودی اصلی پروژه است.
+- برای حالت Webhook بهتر است از Redis برای ذخیره‌ی حافظه استفاده شود.
+- در صورت استفاده از Vercel، متغیرهای محیطی را دقیقاً در پنل Vercel تعریف کنید.
 
-### ۲) دستورات مستقیم در تلگرام (سریع، موبایلی)
+## 🤝 مشارکت
 
-اگه آیدی عددی تلگرامت رو در `ADMIN_USER_IDS` بذاری، این دستورات فقط برای تو
-فعال میشن (بقیه‌ی کاربرها حتی وجودشون رو نمی‌بینن):
-
-| دستور | کار |
-|---|---|
-| `/admin` | آمار کلی — تعداد کاربرها و پیام‌ها |
-| `/users` | لیست همه‌ی کاربرها با آیدی و تعداد پیام |
-| `/chatlog <user_id>` | کل تاریخچه‌ی گفتگو + فکت‌های اون کاربر، مستقیم توی چت |
-
-آیدی عددی خودت رو از [@userinfobot](https://t.me/userinfobot) بگیر.
-
-این دستورات هم در `bot.py` (polling) و هم در `webhook_logic.py` (Vercel) کار
-می‌کنن — هرجا ربات رو اجرا کنی، دسترسی ادمین همراهته.
-
----
-
-## گروه‌ها
-
-ربات در گروه فقط جواب میده وقتی:
-- با `@username` منشن بشه
-- کسی ریپلای به پیام ربات بزنه (تشخیص هم با آیدی عددی هم یوزرنیم)
-- پیام با `Nazoo` یا `نازو` شروع بشه
-
----
-
-## تغییر شخصیت
-
-فایل `personality.txt` رو هر جور خواستی ویرایش کن — کاملاً بدون نیاز به
-تغییر کد. در حالت polling با ریستارت اعمال میشه؛ در Vercel با هر دیپلوی
-جدید (چون فایل بخشی از بیلده).
-
----
-
-## پروکسی (برای شبکه‌های محدود)
-
-اگه در حالت polling اجرا می‌کنی و دسترسی مستقیم به `api.telegram.org` نداری،
-`TELEGRAM_PROXY_URL` رو در `.env` ست کن:
-
-```env
-TELEGRAM_PROXY_URL=http://127.0.0.1:10808
-```
-
-این فقط برای حالت polling (`bot.py`) کاربرد داره — حالت Vercel از سرورهای
-خود Vercel به تلگرام وصل میشه و معمولاً نیازی به پروکسی نداره.
-
----
-
-## نکات فنی
-
-- **مدل:** `deepseek-v4-flash` از طریق [OpenModel.ai](https://www.openmodel.ai/model-pricing/deepseek-v4-flash) — یه gateway چندمدلیه که با فرمت Anthropic Messages API سازگاره.
-- **OPENMODEL_BASE_URL بدون `/v1`:** کلاینت‌های سازگار با Anthropic خودشون
-  `/v1/messages` رو به انتهای base_url اضافه می‌کنن. اگه خودت هم `/v1` بذاری،
-  مسیر نهایی `/v1/v1/messages` میشه و خطای 404 می‌گیری.
-- **امنیت webhook:** اگه `TELEGRAM_WEBHOOK_SECRET` رو ست کنی، تلگرام هر
-  درخواست رو با یه هدر مخصوص امضا می‌کنه و `webhook_logic.py` قبل از پردازش
-  چکش می‌کنه.
-- **Cold start:** اولین پیام بعد از مدت بی‌فعالیت ممکنه یه‌کم کندتر باشه
-  چون Vercel باید function رو دوباره گرم کنه — طبیعیه.
-- **محدودیت زمان اجرا:** `vercel.json` روی ۳۰ ثانیه (webhook) و ۱۵ ثانیه
-  (admin) ست شده. اگه پلن Hobby داری و خطای timeout گرفتی، `maxDuration`
-  رو پایین‌تر بیار یا به پلن بالاتر برو.
-- **بدون dependency در api/:** هیچ‌وقت `import requests` یا `import anthropic`
-  به `webhook_logic.py` یا `admin_logic.py` اضافه نکن — این باعث برمی‌گرده
-  همون خطای `ModuleNotFoundError` که قبلاً حل شد. اگه چیز جدیدی لازم شد، از
-  `urllib.request` (که همین الان استفاده میشه) استفاده کن. همچنین هیچ‌وقت
-  یه کلاس دیگه به اسم `handler` جای دیگه‌ای در پروژه تعریف نکن — Vercel
-  گیج میشه که کدوم entrypoint واقعیه (دقیقاً همون مشکلی که با `api/index.py`
-  حلش کردیم).
-
----
-
-## اجرا به‌عنوان سرویس (روش جایگزین — VPS بجای Vercel)
-
-```bash
-sudo nano /etc/systemd/system/nazoo.service
-```
-```ini
-[Unit]
-Description=Nazoo Telegram Bot
-After=network.target
-
-[Service]
-WorkingDirectory=/path/to/nazoo-bot
-ExecStart=/path/to/nazoo-bot/venv/bin/python bot.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-```bash
-sudo systemctl enable nazoo && sudo systemctl start nazoo
-```
+در صورت تمایل، برای بهبود پروژه می‌توانید Pull Request ارسال کنید یا issue باز کنید.
