@@ -14,11 +14,8 @@ import hmac
 import json
 import os
 import sys
-from http.server import BaseHTTPRequestHandler
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 import kv_store as kv
 
@@ -501,63 +498,63 @@ def _render_html() -> bytes:
     return html.encode("utf-8")
 
 
-# ── Vercel entrypoint ─────────────────────────────────────────────────────────
+# ── توابع فراخوانی‌شده از api/index.py (نه یه کلاس handler مستقل) ─────────────
 
-class handler(BaseHTTPRequestHandler):
+def handle_get(req):
+    body = _render_html()
+    req.send_response(200)
+    req.send_header("Content-Type", "text/html; charset=utf-8")
+    req.send_header("Content-Length", str(len(body)))
+    req.end_headers()
+    req.wfile.write(body)
 
-    def _json(self, code: int, data: dict):
-        body = json.dumps(data, ensure_ascii=False).encode("utf-8")
-        self.send_response(code)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
 
-    def do_GET(self):
-        body = _render_html()
-        self.send_response(200)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+def _json(req, code: int, data: dict):
+    body = json.dumps(data, ensure_ascii=False).encode("utf-8")
+    req.send_response(code)
+    req.send_header("Content-Type", "application/json; charset=utf-8")
+    req.send_header("Content-Length", str(len(body)))
+    req.end_headers()
+    req.wfile.write(body)
 
-    def do_POST(self):
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        raw = self.rfile.read(length) if length else b"{}"
-        try:
-            payload = json.loads(raw or b"{}")
-        except Exception:
-            payload = {}
 
-        action = payload.get("action", "")
-        secret = payload.get("secret", "")
+def handle_post(req):
+    length = int(req.headers.get("Content-Length", 0) or 0)
+    raw = req.rfile.read(length) if length else b"{}"
+    try:
+        payload = json.loads(raw or b"{}")
+    except Exception:
+        payload = {}
 
-        if not ADMIN_SECRET or not hmac.compare_digest(str(secret), ADMIN_SECRET):
-            self._json(401, {"ok": False, "error": "unauthorized"})
-            return
+    action = payload.get("action", "")
+    secret = payload.get("secret", "")
 
-        try:
-            if action == "login":
-                data = {"ok": True}
-            elif action == "stats":
-                data = {"ok": True, **get_stats()}
-            elif action == "list_users":
-                data = {"ok": True, "users": list_users()}
-            elif action == "get_user":
-                uid = str(payload.get("user_id", ""))
-                data = {"ok": True, **get_user_detail(uid)}
-            elif action == "clear_history":
-                clear_history(str(payload.get("user_id", "")))
-                data = {"ok": True}
-            elif action == "clear_facts":
-                clear_facts(str(payload.get("user_id", "")))
-                data = {"ok": True}
-            elif action == "delete_user":
-                delete_user(str(payload.get("user_id", "")))
-                data = {"ok": True}
-            else:
-                data = {"ok": False, "error": "unknown action"}
-        except Exception as e:
-            data = {"ok": False, "error": str(e)}
+    if not ADMIN_SECRET or not hmac.compare_digest(str(secret), ADMIN_SECRET):
+        _json(req, 401, {"ok": False, "error": "unauthorized"})
+        return
 
-        self._json(200, data)
+    try:
+        if action == "login":
+            data = {"ok": True}
+        elif action == "stats":
+            data = {"ok": True, **get_stats()}
+        elif action == "list_users":
+            data = {"ok": True, "users": list_users()}
+        elif action == "get_user":
+            uid = str(payload.get("user_id", ""))
+            data = {"ok": True, **get_user_detail(uid)}
+        elif action == "clear_history":
+            clear_history(str(payload.get("user_id", "")))
+            data = {"ok": True}
+        elif action == "clear_facts":
+            clear_facts(str(payload.get("user_id", "")))
+            data = {"ok": True}
+        elif action == "delete_user":
+            delete_user(str(payload.get("user_id", "")))
+            data = {"ok": True}
+        else:
+            data = {"ok": False, "error": "unknown action"}
+    except Exception as e:
+        data = {"ok": False, "error": str(e)}
+
+    _json(req, 200, data)

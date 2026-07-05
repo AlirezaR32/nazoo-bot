@@ -1,3 +1,0 @@
-# api/webhook.py و api/admin.py از هیچ پکیج خارجی استفاده نمی‌کنن —
-# فقط stdlib پایتون (urllib, json, http.server, hmac, ...).
-# این فایل عمداً خالیه؛ چیزی به‌جز کامنت به‌اش اضافه نکن.

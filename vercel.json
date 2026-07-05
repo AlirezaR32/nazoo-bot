@@ -1,15 +1,12 @@
 {
-  "buildCommand": "pip install -r requirements.txt",
+  "$schema": "https://openapi.vercel.sh/vercel.json",
   "functions": {
-    "api/webhook.py": {
-      "runtime": "python3.11",
-      "maxDuration": 30,
-      "memory": 1024
-    },
-    "api/admin.py": {
-      "runtime": "python3.11",
-      "maxDuration": 15,
-      "memory": 512
+    "api/index.py": {
+      "maxDuration": 30
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/api/webhook", "destination": "/api/index?route=webhook" },
+    { "source": "/api/admin",   "destination": "/api/index?route=admin" }
+  ]
 }

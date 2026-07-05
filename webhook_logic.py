@@ -18,11 +18,8 @@ import sys
 import urllib.request
 import urllib.error
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler
 
-_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-if _ROOT not in sys.path:
-    sys.path.insert(0, _ROOT)
+_ROOT = os.path.dirname(os.path.abspath(__file__))
 
 import kv_store as kv
 from fact_patterns import extract_facts
@@ -350,36 +347,39 @@ def process_update(update: dict):
         kv.set_json(facts_key, merged)
 
 
-# ── Vercel entrypoint ─────────────────────────────────────────────────────────
+# ── توابع فراخوانی‌شده از api/index.py (نه یه کلاس handler مستقل) ─────────────
+# نکته‌ی مهم: این فایل دیگه خودش کلاس handler ندارد. Vercel's Python runtime
+# فقط یک entrypoint واحد در کل پروژه قبول می‌کنه، پس این منطق از
+# api/index.py صدا زده میشه که تنها handler واقعی پروژه‌ست.
 
-class handler(BaseHTTPRequestHandler):
+def handle_get(req):
+    body = f"🤖 {BOT_NAME} webhook is alive!".encode()
+    req.send_response(200)
+    req.send_header("Content-type", "text/plain; charset=utf-8")
+    req.send_header("Content-Length", str(len(body)))
+    req.end_headers()
+    req.wfile.write(body)
 
-    def log_message(self, fmt, *args):
-        logger.info(fmt % args)
 
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/plain; charset=utf-8")
-        self.end_headers()
-        self.wfile.write(f"🤖 {BOT_NAME} webhook is alive!".encode())
+def handle_post(req):
+    if WEBHOOK_SECRET:
+        sent = req.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
+        if sent != WEBHOOK_SECRET:
+            req.send_response(401)
+            req.end_headers()
+            return
 
-    def do_POST(self):
-        if WEBHOOK_SECRET:
-            sent = self.headers.get("X-Telegram-Bot-Api-Secret-Token", "")
-            if sent != WEBHOOK_SECRET:
-                self.send_response(401)
-                self.end_headers()
-                return
+    length = int(req.headers.get("Content-Length", 0) or 0)
+    body   = req.rfile.read(length) if length else b"{}"
 
-        length = int(self.headers.get("Content-Length", 0) or 0)
-        body   = self.rfile.read(length) if length else b"{}"
+    try:
+        process_update(json.loads(body or b"{}"))
+    except Exception as e:
+        logger.error(f"webhook error: {e}", exc_info=True)
 
-        try:
-            process_update(json.loads(body or b"{}"))
-        except Exception as e:
-            logger.error(f"webhook error: {e}", exc_info=True)
-
-        self.send_response(200)
-        self.send_header("Content-type", "application/json")
-        self.end_headers()
-        self.wfile.write(b'{"ok":true}')
+    resp = b'{"ok":true}'
+    req.send_response(200)
+    req.send_header("Content-type", "application/json")
+    req.send_header("Content-Length", str(len(resp)))
+    req.end_headers()
+    req.wfile.write(resp)
