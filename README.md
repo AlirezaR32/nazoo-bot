@@ -8,7 +8,7 @@
 | حالت | فایل | کجا اجرا میشه | حافظه |
 |---|---|---|---|
 | **Polling** | `bot.py` | لپ‌تاپ یا VPS (همیشه روشن) | SQLite محلی |
-| **Webhook** | `api/webhook.py` | Vercel (Serverless) | Redis (Upstash/Vercel KV) |
+| **Webhook** | `api/index.py` (+ `webhook_logic.py`) | Vercel (Serverless) | Redis (Upstash/Vercel KV) |
 
 ---
 
@@ -17,13 +17,14 @@
 ```
 nazoo-bot/
 ├── api/
-│   ├── webhook.py          # تابع Serverless تلگرام برای Vercel
-│   └── admin.py             # داشبورد وب ادمین برای Vercel
-├── bot.py                    # ربات حالت polling — برای لپ‌تاپ/VPS
-├── config.py                  # تنظیمات مشترک از .env
-├── memory.py                  # حافظه SQLite (فقط polling)
-├── ai_client.py                # کلاینت async OpenModel (فقط polling)
-├── kv_store.py                  # کلاینت مینیمال Upstash Redis (webhook + admin)
+│   └── index.py             # ⭐ تنها Python entrypoint واقعی روی Vercel
+├── webhook_logic.py          # منطق webhook (بدون کلاس handler — از index.py صدا زده میشه)
+├── admin_logic.py              # منطق داشبورد ادمین (همون‌طور)
+├── bot.py                       # ربات حالت polling — برای لپ‌تاپ/VPS
+├── config.py                     # تنظیمات مشترک از .env
+├── memory.py                      # حافظه SQLite (فقط polling)
+├── ai_client.py                    # کلاینت async OpenModel (فقط polling)
+├── kv_store.py                      # کلاینت مینیمال Upstash Redis (webhook + admin)
 ├── fact_patterns.py              # regexهای استخراج فکت (مشترک)
 ├── group_utils.py                 # تشخیص منشن/ریپلای در گروه (مشترک)
 ├── personality_loader.py           # بارگذاری فایل شخصیت (مشترک)
@@ -35,13 +36,16 @@ nazoo-bot/
 └── .gitignore
 ```
 
-**نکته‌ی مهم:** `api/webhook.py` و `api/admin.py` عمداً هیچ پکیج خارجی
-استفاده نمی‌کنن (فقط stdlib پایتون). این تصمیمیه، نه محدودیت — چون Vercel
-وقتی توی `requirements.txt` پکیج‌های شناخته‌شده‌ای مثل `flask`/`fastapi`/`django`
-ببینه، فرض می‌کنه پروژه یه اپ وب با اون فریمورکه و دنبال یه آبجکت `app`
-می‌گرده، نه کلاس `handler` که این فایل‌ها واقعاً دارن — و همین باعث خطای
-`could not import` میشه. با zero-dependency بودن این دو فایل، کل این کلاس
-مشکلات از اساس حذف میشه.
+**نکته‌ی مهم ۱:** `webhook_logic.py` و `admin_logic.py` عمداً هیچ پکیج
+خارجی استفاده نمی‌کنن (فقط stdlib پایتون) — تا مشکلات نصب پکیج در Vercel
+اصلاً پیش نیاد.
+
+**نکته‌ی مهم ۲:** Vercel's Python runtime فقط **یک entrypoint واحد** برای
+کل پروژه قبول می‌کنه. برای همین `api/index.py` تنها فایلیه که کلاس
+`handler` داره — و بر اساس query param `?route=` (که با rewrite در
+`vercel.json` تنظیم شده) بین منطق webhook و admin سوییچ می‌کنه. آدرس‌های
+`/api/webhook` و `/api/admin` دقیقاً مثل قبل کار می‌کنن، فقط پشت‌صحنه به
+یه فایل واحد rewrite میشن.
 
 ---
 
@@ -96,8 +100,9 @@ git push
 
 1. به [vercel.com/new](https://vercel.com/new) برو
 2. ریپوی `nazoo-bot` رو از GitHub انتخاب کن و Import بزن
-3. Vercel خودش Python runtime رو تشخیص میده و `api/webhook.py` +
-   `api/admin.py` رو به‌عنوان دو تابع سرورless جدا می‌سازه
+3. Vercel خودش Python runtime رو تشخیص میده و `api/index.py` رو
+   به‌عنوان تنها entrypoint پروژه می‌سازه (webhook و admin هر دو از
+   همین یه تابع سرو میشن، با rewrite داخل `vercel.json`)
 
 ### مرحله ۳ — یه دیتابیس Redis وصل کن (برای حافظه)
 
@@ -184,7 +189,7 @@ python set_webhook.py info
 
 دو راه برای دیدن پیام‌های همه‌ی کاربرها و جواب‌های AI وجود داره:
 
-### ۱) داشبورد وب کامل (`api/admin.py`)
+### ۱) داشبورد وب کامل
 
 به این آدرس برو:
 ```
@@ -215,7 +220,7 @@ https://your-project.vercel.app/api/admin
 
 آیدی عددی خودت رو از [@userinfobot](https://t.me/userinfobot) بگیر.
 
-این دستورات هم در `bot.py` (polling) و هم در `api/webhook.py` (Vercel) کار
+این دستورات هم در `bot.py` (polling) و هم در `webhook_logic.py` (Vercel) کار
 می‌کنن — هرجا ربات رو اجرا کنی، دسترسی ادمین همراهته.
 
 ---
@@ -258,7 +263,7 @@ TELEGRAM_PROXY_URL=http://127.0.0.1:10808
   `/v1/messages` رو به انتهای base_url اضافه می‌کنن. اگه خودت هم `/v1` بذاری،
   مسیر نهایی `/v1/v1/messages` میشه و خطای 404 می‌گیری.
 - **امنیت webhook:** اگه `TELEGRAM_WEBHOOK_SECRET` رو ست کنی، تلگرام هر
-  درخواست رو با یه هدر مخصوص امضا می‌کنه و `api/webhook.py` قبل از پردازش
+  درخواست رو با یه هدر مخصوص امضا می‌کنه و `webhook_logic.py` قبل از پردازش
   چکش می‌کنه.
 - **Cold start:** اولین پیام بعد از مدت بی‌فعالیت ممکنه یه‌کم کندتر باشه
   چون Vercel باید function رو دوباره گرم کنه — طبیعیه.
@@ -266,9 +271,12 @@ TELEGRAM_PROXY_URL=http://127.0.0.1:10808
   (admin) ست شده. اگه پلن Hobby داری و خطای timeout گرفتی، `maxDuration`
   رو پایین‌تر بیار یا به پلن بالاتر برو.
 - **بدون dependency در api/:** هیچ‌وقت `import requests` یا `import anthropic`
-  به `api/webhook.py` یا `api/admin.py` اضافه نکن — این باعث برمی‌گرده همون
-  خطای `ModuleNotFoundError` که قبلاً حل شد. اگه چیز جدیدی لازم شد، از
-  `urllib.request` (که همین الان استفاده میشه) استفاده کن.
+  به `webhook_logic.py` یا `admin_logic.py` اضافه نکن — این باعث برمی‌گرده
+  همون خطای `ModuleNotFoundError` که قبلاً حل شد. اگه چیز جدیدی لازم شد، از
+  `urllib.request` (که همین الان استفاده میشه) استفاده کن. همچنین هیچ‌وقت
+  یه کلاس دیگه به اسم `handler` جای دیگه‌ای در پروژه تعریف نکن — Vercel
+  گیج میشه که کدوم entrypoint واقعیه (دقیقاً همون مشکلی که با `api/index.py`
+  حلش کردیم).
 
 ---
 
